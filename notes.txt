@@ -1,0 +1,35 @@
+i want to try writing a script executor like the ones seen for roblox but for the ugc gaming platform vortex (playvortex.io), its a copy of roblox, and just like roblox, it uses luau for scripting.
+i have experience writing lua and its derivitives like luau but ive never implemented or worked with the lua virtual machine closely, altough its easy to infer what it is and does.
+i assumed that the script executor finds and hooks into the luau virtual machine to inject luau bytecode directly into the running game client.
+i couldnt find any info on exploiting a lua virtual machine to inject bytecode, nor could i find any meaningful roblox specific information.
+after asking google gemini it put together a basic overview of how it works for roblox, supporting what i thought before, altough a roblox executor also does some interesting things to elevate
+privelages and what code can run.
+here is the overview it gave me for roblox script executors.
+1. Process Memory Injection
+Before interacting with Luau, the executor must break into the Roblox process (RobloxPlayerBeta.exe).
+User-Mode / Driver Injection: The executor application uses memory allocation APIs (VirtualAllocEx, WriteProcessMemory) or kernel-mode drivers to map a Dynamic Link Library (DLL) into Roblox’s address space.
+Execution Hijacking: By spawning a thread (CreateRemoteThread) or hooking an existing thread inside the game process, the injected DLL gains the ability to execute C/C++ code directly inside Roblox's memory space.
+2. Locating the Luau State (lua_State)
+Once executing inside Roblox's memory, the injected DLL must find where the game engine stores its scripting engine.
+Pattern Scanning (AOB): The DLL scans Roblox's memory for specific byte sequences (signatures) to locate internal functions and global pointers.
+lua_State Retrieval: It identifies the lua_State structure pointer, which holds the active execution stack, global variables, garbage collector state, and registered C functions.
+3. Escalating Script Security Identity (Capabilities)
+Roblox isolates code using Security Identities (Levels 1 through 8). Normal game local scripts run at Level 2, preventing them from modifying critical game data or calling restricted functions.
+Memory Patching: The injected DLL accesses the ExtraSpace or userdata offset linked to the active lua_State thread.
+Capability Privilege Elevation: It directly overwrites the thread's permission bitmask, upgrading the script's identity to Level 7 or 8 (CoreScript / Plugin level). This grants the thread unrestricted permission to invoke methods like game:GetService("CoreGui") or access internal engine objects.
+4. Bytecode Compilation and Loading
+The Luau Virtual Machine does not execute raw text strings directly; it only reads binary bytecode.
+Luau Compiler: The executor's UI takes the user's custom script text and compiles it into Luau bytecode formatted specifically for Roblox's modified opcode structure.  
+Passing to the Loader: The injected DLL invokes Roblox's internal bytecode loading function (e.g., luau_load or luavm::load) directly from process memory. This converts the compiled bytecode buffer into a callable Luau closure (Closure*) inside the VM.
+5. Task Scheduler Integration
+Running foreign code from an unmanaged thread would cause memory corruption or instant game crashes due to race conditions with Roblox's render and physics loops.
+Thread Creation: The DLL calls lua_newthread / luaL_sandboxthread to allocate a safe, isolated thread from the global lua_State.
+Scheduling: The closure is pushed onto Roblox's internal Task Scheduler queue. The main game loop then executes the injected script safely on the next frame update alongside regular client scripts.
+6. Environment Augmentation & Metamethod Detouring
+To expand what the injected scripts can do, the executor modifies the script's global environment (getfenv).
+Injecting Custom APIs: The DLL registers custom C functions into the global table, providing script authors with extra utilities like getgenv(), decompile(), firetouchinterest(), and request().
+Metatable Hooking: The executor hooks into the engine's central metatable methods (such as __namecall or __index). This allows injected scripts to intercept, block, or rewrite network traffic and RemoteEvent calls before they reach Roblox's network layer.
+when i start something i dont know much about i like to just follow general guidence even if i am not 100% sure why or what every step is doing or working towards, but it helps me have a basic
+judgement of the work and time required for the project.
+but i fist i am curious to see if there are any decent open source script executors for roblox which implement the hooking and injection logic themselves instead of just using a pre-made api, in
+reality when searching for technical information tutorials just use pre-made apis.
