@@ -31,5 +31,6 @@ Injecting Custom APIs: The DLL registers custom C functions into the global tabl
 Metatable Hooking: The executor hooks into the engine's central metatable methods (such as __namecall or __index). This allows injected scripts to intercept, block, or rewrite network traffic and RemoteEvent calls before they reach Roblox's network layer.
 when i start something i dont know much about i like to just follow general guidence even if i am not 100% sure why or what every step is doing or working towards, but it helps me have a basic
 judgement of the work and time required for the project.
+the version of vortex i am working with, its client, is vortex version 0.5.4 (Vortex-0.5.4-13.09.26.exe) (sha256 hash: 958C6C45DABEFC55EC87E45FE5ECBBD4424F44990AEF71D290B34114421D35F7).
 but i fist i am curious to see if there are any decent open source script executors for roblox which implement the hooking and injection logic themselves instead of just using a pre-made api, in
 reality when searching for technical information tutorials just use pre-made apis.
