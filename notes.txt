@@ -34,3 +34,67 @@ judgement of the work and time required for the project.
 the version of vortex i am working with, its client, is vortex version 0.5.4 (Vortex-0.5.4-13.09.26.exe) (sha256 hash: 958C6C45DABEFC55EC87E45FE5ECBBD4424F44990AEF71D290B34114421D35F7).
 but i fist i am curious to see if there are any decent open source script executors for roblox which implement the hooking and injection logic themselves instead of just using a pre-made api, in
 reality when searching for technical information tutorials just use pre-made apis.
+i can also try to find one of the apis used by the script executors if they are open source.
+having a look on github and having google gemini analyse 2 different executors it showed that they operate in varying ways, i also got google gemini to find me some information on lua virtual
+machine exploitation and bytecode injection. altough the lua and luau virtual machines differ a good amount so the same methodology doesnt work.
+i compiled the outputs from a couple different gemini chats into one big prompt so i have some general guidance for the start, like i said before ill follow a general guide first.
+using ghidra 12.1.2 i opened the vortex client executable and did the automated scan.
+logically i know i am going to be comparing a lot of compiled and decompiled pseudo-c code to the luau compiled assembly and source code, so first i want to find out what version the vortex
+client uses.
+searching 'lua' in string search i got 'DEFINED	146cdcff0		ds "$Lua: Lua 5.1.4 Copyright (C) 1994-2008 Lua.org, PUC-Rio $\n$Authors: R. Ierusalimschy, L. H. de Figueiredo & W. Celes $\n$URL: www.lua.org $\n"	"$Lua: Lua 5.1.4 Copyright (C) 1994-2008 Lua.org, PUC-Rio $\n$Authors: R. Ierusalimschy, L. H. de Figueiredo & W. Celes $\n$URL: www.lua.org $\n"	string	141	true'
+this makes sense as i think luau is built off lua 5.1.4, but thats not what we are looking for. luau doesnt use standard version numbers like Lua 5.1 or 5.3, instead it uses rolling commits and
+a luau bytecode version integer defined in 'Common/include/Luau/Bytecode.h', i assume its this:
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// Bytecode tags, used internally for bytecode encoded as a string
+enum LuauBytecodeTag
+{
+    // Bytecode version; runtime supports [MIN, MAX], compiler emits TARGET by default but may emit a higher version when flags are enabled
+    LBC_VERSION_MIN = 3,
+    LBC_VERSION_MAX = 14,
+    LBC_VERSION_TARGET = 9,
+    LBC_VERSION_CLASSES = 100,
+    // Type encoding version
+    LBC_TYPE_VERSION_MIN = 1,
+    LBC_TYPE_VERSION_MAX = 3,
+    LBC_TYPE_VERSION_TARGET = 3,
+    // Types of constant table entries
+    LBC_CONSTANT_NIL = 0,
+    LBC_CONSTANT_BOOLEAN,
+    LBC_CONSTANT_NUMBER,
+    LBC_CONSTANT_STRING,
+    LBC_CONSTANT_IMPORT,
+    LBC_CONSTANT_TABLE,
+    LBC_CONSTANT_CLOSURE,
+    LBC_CONSTANT_VECTOR,
+    LBC_CONSTANT_TABLE_WITH_CONSTANTS,
+    LBC_CONSTANT_INTEGER,
+    LBC_CONSTANT_CLASS_SHAPE,
+    LBC_CONSTANT_VECTORD,
+
+    /** WARNING: This must always be last. */
+    LBC_CONSTANT__COUNT
+};
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+this presumably is used so luau code written for a different unsuported version will not run. searching for uses of 'LBC_VERSION_' in the repo we get 'VM/src/lvmload.cpp' and
+'Bytecode/src/BytecodeBuilder.cpp'.
+the source file, 'lvmload.cpp', is a part of the luau virtual machine implementation and is responsible for loading and parsing bytecode into executable prototypes, it serves as the interface
+between the compiled bytecode blobs and the vm's internal execution structures, ensuring that the binary layout is correctly interpreted before execution begins. 
+looking at the source code the 'LBC_VERSION_' variables are only used for one thing:
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if ((version < LBC_VERSION_MIN || version > LBC_VERSION_MAX) && version != LBC_VERSION_CLASSES) 														< USED HERE
+    {
+        char chunkbuf[LUA_IDSIZE];
+        const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+        lua_pushfstring(L, "%s: bytecode version mismatch (expected [%d..%d], got %d)", chunkid, LBC_VERSION_MIN, LBC_VERSION_MAX, version);				< USED HERE
+        return 1;
+    }
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+we see its used to throw an error message when there is a luau bytecode and virtual machine mismatch, altough it doesnt really matter because we have already found something useful.
+here we have a error message, a string, which we can search for in the binary within ghidra.
+for now we will ignore the second source file utilising these variables.
+searching for the string "%s: bytecode version mismatch (expected [%d..%d], got %d)" in ghidra we get 1 hit on the address '146cdcec8', the address/string has one xref pointing to it, '1466f0f05':
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       1466f0f05 48 8d 15        LEA        RDX,[0x146cdcec8]											: [s_%s:_bytecode_version_mismatch_(e_146cdcec8]
+                 bc bf 5e 00
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+that error message string only appears in one place in the source code, 'lvmload.cpp'. meaning that we are now looking at the dissasembled instructions of the previous code block from 'lvmload.cpp'.
