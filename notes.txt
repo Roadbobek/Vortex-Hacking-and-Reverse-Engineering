@@ -121,4 +121,28 @@ now we middle click 'cVar2' in the pseudo-c decompilation window, which highligh
 from the assignment we can see '*param_3' is a pointer because of the '*', so whats happening is that the pointer is being de-referenced and its value is being asigned to 'cVar2'.
 from the function arguments we see 'char *param_3', so we also know that param_3 is a pointer to a char data type.
 referencing our decompilation to the source code, we see that 'cVar2 = *param_3;' lines up with 'uint8_t version = read<uint8_t>(data, size, offset);'.
-ts bru?
+i do not have enough theory or experience to know what is happening, remember that ghidra tries to decompile this c++ code as c code, so its messy.
+but searching it up, in c++, <uint8_t> inside read<uint8_t>(...) is a template argument. the template function read<T> uses this parameter to specify that it should parse (read) 1 byte from
+the input buffer as an unsigned 8-bit integer (uint8_t).
+quick note, both char and uint8_t types occupy exactly 1 byte (8 bits) in memory, in x86/x64 c++ compilers, char is typically signed by default (range -128 to 127), whereas uint8_t (an alias
+for unsigned char) is explicitly unsigned (0 to 255).
+in read<uint8_t>, the <uint8_t> tells the compiler to generate a version of the read function where the return type T is uint8_t. internally that function performs a pointer read/cast,
+such as reinterpret_cast<const uint8_t*>) to extract the byte.
+in the decompilation the value param_3 dereferences to is a char (signed 1 byte data type, default char), but its being returned and assigned to cVar2 as a uint8_t (unsigned 1 byte data type,
+uint8_t is typically just a typedef for unsigned char).
+ghidra likely typed cVar2 as an unsigned 8-bit integer because the assembly uses 8-bit zero-extension (movzx) or unsigned arithmetic instructions on that specific variable.
+tracing back the data variable, since thats what the function which assigns cVar2 its value reads from, you get 'const char* data', so yes the data variable in
+'uint8_t version = read<uint8_t>(data, size, offset);' is a signed char and we convert it into a unsigned char.
+at the assembly level, reading param_3 executes an 8-bit memory move (such as mov al, byte ptr [rdx]), because the operation simply moves 8 raw bits from memory into a register,
+no extra conversion instructions are required, the distinction between signed and unsigned only affects subsequent instructions like movzx (zero-extend) or arithmetic checks.
+well yeah in the end this isnt that useful (for now) but for fun, in '((version < LBC_VERSION_MIN || version > LBC_VERSION_MAX) && version != LBC_VERSION_CLASSES)' from '(3 < (byte)(cVar2 - 3U))'
+we know that LBC_VERSION_MIN is 3 and LBC_VERSION_MAX is 6, and we know that because The decompiled condition if '(3 < (byte)(cVar2 - 3U))' embeds both bounds directly.
+when a compiler optimizes a range check like 'if (version < MIN || version > MAX)' into a single comparison, it compiles into this pseudocode pattern:
+'if (3/SPAN < (byte)(cVar2/variable - 3/MIN))'.
+extracting the minimum (MIN): look directly at the value being subtracted inside the parentheses (variable - MIN).
+subtracting the lower bound shifts the minimum valid input down to 0 (3 - 3 = 0). Any value smaller than MIN underflows an unsigned byte to a large number (2 - 3 = 255),
+automatically failing the check. in the code (cVar2 - 3U), The subtracted number is 3.
+extracting the maximum (MAX): take the comparison limit outside the parentheses (SPAN) and add it to MIN, (MAX = MIN + SPAN).
+the value outside the parentheses represents the maximum allowed offset range above 0. Adding the offset limit (SPAN) back to the starting point (MIN}) yields the upper bound.
+in the code (3 < ...), the comparison limit is 3. MAX = 3 + 3 = 6.
+so we know the version of luau used in vortex accepts luau bytecode versions 3 to 6, but the actual value of version (cVar2) comes from the first byte of the data variable in source code.
