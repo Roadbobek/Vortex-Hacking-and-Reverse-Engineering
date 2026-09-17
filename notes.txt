@@ -77,7 +77,7 @@ enum LuauBytecodeTag
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 this presumably is used so luau code written for a different unsuported version will not run. searching for uses of 'LBC_VERSION_' in the repo we get 'VM/src/lvmload.cpp' and
 'Bytecode/src/BytecodeBuilder.cpp'.
-the source file, 'lvmload.cpp', is a part of the luau virtual machine implementation and is responsible for loading and parsing bytecode into executable prototypes, it serves as the interface
+the source file, lvmload.cpp, is a part of the luau virtual machine implementation and is responsible for loading and parsing bytecode into executable prototypes, it serves as the interface
 between the compiled bytecode blobs and the vm's internal execution structures, ensuring that the binary layout is correctly interpreted before execution begins. 
 looking at the source code the 'LBC_VERSION_' variables are only used for one thing:
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -97,4 +97,28 @@ searching for the string "%s: bytecode version mismatch (expected [%d..%d], got 
        1466f0f05 48 8d 15        LEA        RDX,[0x146cdcec8]											: [s_%s:_bytecode_version_mismatch_(e_146cdcec8]
                  bc bf 5e 00
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-that error message string only appears in one place in the source code, 'lvmload.cpp'. meaning that we are now looking at the dissasembled instructions of the previous code block from 'lvmload.cpp'.
+that error message string only appears in one place in the source code, lvmload.cpp. meaning that we are now looking at the decompiled instructions of the previous code block from lvmload.cpp.
+in the windows 64 calling convention rdx is used to pass the second integer, pointer, or aggregate argument to a function, this function being the lua_pushfstring function, as seen the string is
+the second argument after 'L'.
+looking at the decompiled pseudo-c code we have:
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - FUN_1466efe60 -
+  if (3 < (byte)(cVar2 - 3U)) {
+    sVar7 = strlen(param_2);
+    uVar8 = FUN_146662ea0(&uStack_148,0x100,param_2,sVar7);
+    FUN_1466ecb80(param_1,"%s: bytecode version mismatch (expected [%d..%d], got %d)",uVar8,3,
+                  CONCAT44(uVar39,6),cVar2);
+    return 1;
+  }
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+which lines up with the source code extract from lvmload.cpp, presumably meaning that our bytecode version should be 3 because thats what alligns with the 'version' variables place.
+but thats not the case, because the compiler optimises '((version < LBC_VERSION_MIN || version > LBC_VERSION_MAX) && version != LBC_VERSION_CLASSES)' down to '(3 < (byte)(cVar2 - 3U))'.
+the expression (byte)(cVar2 - 3U) subtracts 3 from cVar2 and truncates the result to 8 bits, the condition 3 < ... then tests whether that byte value is greater than 3.
+its just a very optimised range check on a character value, that character being 'cVar2'/'version', so we know 'version' is 'cVar2' here, now we need to find out what the value of it is.
+i honestly really dont think this is going to lead anywhere meaningful because i assume the bytecode version is very wide/general but its fun practice anyways.
+now we middle click 'cVar2' in the pseudo-c decompilation window, which highlights every usage of the variable, now we can see a bit higher that the last assignment of our variable 'cVar2' is
+'cVar2 = *param_3;', this is the only assignment. now highlighting param_3 we can see its one of the functions (the function we are currently in) arguments, which its also obvious from the name.
+'undefined8 FUN_1466efe60(longlong param_1,char *param_2,char *param_3,int param_4,int param_5)'.
+from the assignment we can see '*param_3' is a pointer because of the '*', so whats happening is that the pointer is being de-referenced and its value is being asigned to 'cVar2'.
+from the function arguments we see 'char *param_3', so we also know that param_3 is a pointer to a char data type.
+referencing our decompilation to the source code, we see that 'cVar2 = *param_3;' lines up with 'uint8_t version = read<uint8_t>(data, size, offset);'.
+ts bru?
