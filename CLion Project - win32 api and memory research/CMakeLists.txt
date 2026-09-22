@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 4.2)
+project(CLion_Project___win32_api_and_memory_research)
+
+set(CMAKE_CXX_STANDARD 20)
+
+add_executable(CLion_Project___win32_api_and_memory_research main.cpp)

@@ -199,8 +199,15 @@ also, i downloaded and hashed the newest version of vortex, 0.5.5, as Vortex-0.5
 for now i will continue working with the old version.
 well getting back to the goal, our first goal is to be able to find and steal the lua_State pointer (L). there are a few ways.
 since the lua_State pointer is shared between every child lua_State thread, it just points back to the main lua_State thead, this even applies for uses of it in the actual luau vm
-implementation and use of it in your own ebeddeding code, we can simply get any function that has the pointer as one of its arguments and then retreieve it live by hooking onto
-the function and saving the argument for example.
-thats one way, another way could be to use the injected dll to execute built in functions to retreive it for us, idk if this would work but ive seen examples of it, altough they do
-include more complex logic like decryption.
-hm
+implementation and use of it in your own ebeddeding code.
+we can simply get any function that has the pointer as one of its arguments and then retreieve it live by hooking onto the function and saving the argument, a purpose built library like tinyhook
+could be used but i would do it on my own.
+thats one way, another way could be to use the injected dll to execute built in functions to retreive it for us, idk if this would work but ive seen examples of it, altough they do include more
+complex logic like decryption.
+for now i think the first option would be better, to learn and for a result. but with any of those methods i need to learn how to write a dll, write a dll injector, then work closely with the
+program utilising the win32 api.
+bruh im ip banned from guidedhacking.com but ive never even been there wtf?
+well from my basic understanding we need to write a dll that runs in the target vortex process, that will spin off its own thread to do what we need. but first we need to write an injector,
+we need to map our dll into the active process somehow, well with win32 api.
+i made a new clion project to learn the basic windows api stuff and whatnot, i configured it to use the microsoft visual studio toolchain and made sure its on release.
+the project is in 'CLion Project - win32 api and memory research'.
