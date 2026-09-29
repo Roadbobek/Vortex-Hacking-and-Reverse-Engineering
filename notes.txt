@@ -211,3 +211,7 @@ well from my basic understanding we need to write a dll that runs in the target 
 we need to map our dll into the active process somehow, well with win32 api.
 i made a new clion project to learn the basic windows api stuff and whatnot, i configured it to use the microsoft visual studio toolchain and made sure its on release.
 the project is in 'CLion Project - win32 api and memory research'.
+i am gonna take less notes here now im gonna follow some videos and papers to make a simple dll injector, so ill have notes and explentations in my code comments.
+and to be honest i dont think these notes increase my productivity or output much, with simpler things they slow me down.
+i actually do not have much c/c++ expeience altough i have done courses for both i have little experience using them and ive never used win32api but im pretty happy with nyself for now.
+i wrote a basic dll injector and im working on making it a bit usable with a way to select the dll for injection.
