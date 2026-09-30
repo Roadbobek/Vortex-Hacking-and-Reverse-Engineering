@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <vector>
 #include <Windows.h>
 #include <VersionHelpers.h>
 
@@ -22,7 +23,7 @@ std::string banner = R"(   _______   ,---.   .--.  ___    _    ____     __ .---.
 BOOL CALLBACK EnumWindowsProc( HWND hwnd, LPARAM lParam )
 {
     int length = GetWindowTextLength(hwnd);
-    char* buffer = new char[length + 1];
+    char* buffer = new char[length + 1]; // TODO: replace with modern cpp 20/23 features
     GetWindowText(hwnd, buffer, length + 1);
     std::string windowTitle(buffer);
     delete[] buffer;
@@ -66,16 +67,22 @@ bool inject_dll(DWORD ProcessID)
     return true;
 }
 
-void enum_dlls()
+std::vector<std::filesystem::path> enum_dlls()
 {
     int dll_count = 0;
+    std::vector<std::filesystem::path> dlls = {};
     for (const auto& entry : std::filesystem::directory_iterator(".")) {
         // filter to ensure only .dll files are listed and exclude subdirectories
         if (std::filesystem::is_regular_file(entry.status()) and std::filesystem::path(entry).extension() == ".dll") {
             dll_count++;
+            dlls.emplace_back(entry.path());
             std::cout << dll_count << ": " << entry.path().filename().string() << std::endl;
         }
     }
+    if (dlls.empty()) {
+        std::cout << "No dlls found!" << '\n' << std::endl;
+    }
+    return dlls;
 }
 
 void fetch_dll_path()
@@ -109,7 +116,7 @@ int main()
     //         return 0;
     //     }
     //
-        enum_dlls();
+        enum_dlls(); // TODO: return
     //
     //     std::cout << '\n' << "Please choose a DLL to be injected by its number: ";
     //     int selected_dll;
