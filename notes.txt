@@ -215,3 +215,6 @@ i am gonna take less notes here now im gonna follow some videos and papers to ma
 and to be honest i dont think these notes increase my productivity or output much, with simpler things they slow me down.
 i actually do not have much c/c++ expeience altough i have done courses for both i have little experience using them and ive never used win32api but im pretty happy with nyself for now.
 i wrote a basic dll injector and im working on making it a bit usable with a way to select the dll for injection.
+i havent had much time to work on it but now it has a little selector for the process and dll and successfully injects so thats good.
+im only a begginer c/c++ dev most of my knowledge is just theory so this code isnt very good, even with the things i have learnt i have to re-call since i have not used them since.
+but im happy with it, it works fine, and i learnt a good bit.

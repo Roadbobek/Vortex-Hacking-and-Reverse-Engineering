@@ -41,9 +41,13 @@ BOOL CALLBACK EnumWindowsProc( HWND hwnd, LPARAM lParam )
 
 #define CREATE_THREAD_ACCESS (PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ)
 
-bool inject_dll(DWORD ProcessID)
+bool inject_dll(DWORD ProcessID, const std::filesystem::path &dll)
 {
-    LPCSTR DLL_PATH = R"(C:\Users\Roadb\Documents\Vortex Skidding\CLion Project - win32 api and memory research\UnityEngine.dll)";
+    std::filesystem::path dll_dir = std::filesystem::current_path() / dll;
+    std::string dll_dir_str = dll_dir.string();
+    LPCSTR DLL_PATH = dll_dir_str.c_str();
+    //std::cout << "DLL PATH: " << DLL_PATH << std::endl;
+    // LPCSTR DLL_PATH = R"(C:\Users\Roadb\Documents\Vortex Skidding\CLion Project - win32 api and memory research\UnityEngine.dll)";
     LPVOID LoadLibAddy, RemoteString;
 
     HANDLE Proc = OpenProcess(CREATE_THREAD_ACCESS, FALSE, ProcessID);
@@ -56,12 +60,14 @@ bool inject_dll(DWORD ProcessID)
 
     LoadLibAddy = (LPVOID)GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
 
+    // TODO: why Null not nullptr?
     RemoteString = (LPVOID)VirtualAllocEx(Proc, NULL, strlen(DLL_PATH) + 1, MEM_COMMIT, PAGE_READWRITE);
     WriteProcessMemory(Proc, RemoteString, (LPVOID)DLL_PATH, strlen(DLL_PATH)+1, NULL);
     CreateRemoteThread(Proc, NULL, NULL, (LPTHREAD_START_ROUTINE)LoadLibAddy, RemoteString, NULL, NULL);
 
     CloseHandle(Proc);
 
+    // TODO: print process name and dll name?
     std::cout << "DLL Injected!" << '\n' << std::endl;
 
     return true;
@@ -79,15 +85,12 @@ std::vector<std::filesystem::path> enum_dlls()
             std::cout << dll_count << ": " << entry.path().filename().string() << std::endl;
         }
     }
-    if (dlls.empty()) {
-        std::cout << "No dlls found!" << '\n' << std::endl;
-    }
     return dlls;
 }
 
-void fetch_dll_path()
+std::filesystem::path fetch_dll_path(const std::vector<std::filesystem::path> &dlls, const int &selection)
 {
-
+    return dlls[selection - 1];
 }
 
 int main()
@@ -96,40 +99,51 @@ int main()
     std::system("cls");
     std::cout << banner << "\n\n" << std::endl;
 
-    // if (not IsWindowsXPOrGreater())
-    // {
-    //     std::cout << "no way????????????" << std::endl;
-    //     return 0;
-    // }
-    // else
-    // {
-    //     // EnumWindows enumerates and calls our EnumWindowsProc callback function on every top-level window
-    //     EnumWindows(EnumWindowsProc , NULL);
-    //
-    //     std::cout << '\n' << "Please select a process by its PID for injection: ";
-    //     DWORD selected_pid;
-    //     std::cin >> selected_pid;
-    //     std::cout << '\n' << std::endl;
-    //     if (!selected_pid)
-    //     {
-    //         std::cout << "did you actually just press enter without typing anything???" << std::endl;
-    //         return 0;
-    //     }
-    //
-        enum_dlls(); // TODO: return
-    //
-    //     std::cout << '\n' << "Please choose a DLL to be injected by its number: ";
-    //     int selected_dll;
-    //     std::cin >> selected_dll;
-    //     std::cout << '\n' << std::endl;
-    //     if (!selected_dll)
-    //     {
-    //         std::cout << "did you actually just press enter without typing anything???" << std::endl;
-    //         return 0;
-    //     }
+    if (not IsWindowsXPOrGreater())
+    {
+        std::cout << "no way????????????" << std::endl;
+        return 0;
+    }
+    else
+    {
+        // EnumWindows enumerates and calls our EnumWindowsProc callback function on every top-level window
+        EnumWindows(EnumWindowsProc , NULL);
 
-        fetch_dll_path();
+        std::cout << '\n' << "Please select a process by its PID for injection: ";
+        DWORD selected_pid;
+        std::cin >> selected_pid;
+        std::cout << '\n' << std::endl;
+        if (!selected_pid)
+        {
+            std::cout << "did you actually just type 0 or press enter without typing anything???" << std::endl;
+            return 0;
+        }
 
-        //inject_dll(selected_pid);
-    //}
+        const std::vector<std::filesystem::path> dlls = enum_dlls();
+
+        if (dlls.empty())
+        {
+            std::cout << "No dlls found!" << '\n' << std::endl;
+            return 0;
+        }
+
+        std::cout << '\n' << "Please choose a DLL to be injected by its number: ";
+        int dll_selection;
+        std::cin >> dll_selection;
+        std::cout << '\n';
+        //if (!dll_selection)
+        // {
+        //     std::cout << "did you actually just press enter without typing anything???" << std::endl;
+        //     return 0;
+        // }
+        if (dll_selection <= 0 or dll_selection > dlls.size())
+        {
+            std::cout << "not in range bud, there are " << dlls.size() << " dlls..." << std::endl;
+            return 0;
+        }
+
+        std::filesystem::path final_dll = fetch_dll_path(dlls, dll_selection);
+
+        inject_dll(selected_pid, final_dll);
+    }
 }
