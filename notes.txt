@@ -218,3 +218,11 @@ i wrote a basic dll injector and im working on making it a bit usable with a way
 i havent had much time to work on it but now it has a little selector for the process and dll and successfully injects so thats good.
 im only a begginer c/c++ dev most of my knowledge is just theory so this code isnt very good, even with the things i have learnt i have to re-call since i have not used them since.
 but im happy with it, it works fine, and i learnt a good bit.
+i first watched a short youtube video on a basic dll injector but even i could see the code was crappy so i read a old stack overflow thread, re-writing the basics of the injector while reading
+and learning some of the win32 api, and also re-writing parts of it to be better and use modern c++ features. altough a lot of it can be done better, but idc.
+now i need to learn how to write a basic dll, to my basic understanding its just a regular source file compiled as a dll, but it also gives you access to some functions that run when the dll is
+loaded or freed, ect.
+build profiles are based on the default bundled mingw profile, i added a release profile for mingw, a profile using visual studio toolchain, and a release varient of it.
+MinGW Debug, MinGW Release, VS Debug, VS Release.
+everything is now built using the release mingw and vs profiles, for now im testing both versions and learning the differences.
+the previous executables were built using the run option so it defaulted to debug mingw.

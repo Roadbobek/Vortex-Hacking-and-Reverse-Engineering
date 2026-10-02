@@ -3,4 +3,4 @@ project(CLion_Project___win32_api_and_memory_research)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(CLion_Project___win32_api_and_memory_research basic_dll_injector.cpp)
+add_executable(basic_dll_injector bnuyhook_v1_basic_dll_injector.cpp)
