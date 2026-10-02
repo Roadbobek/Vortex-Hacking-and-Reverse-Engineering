@@ -224,5 +224,46 @@ now i need to learn how to write a basic dll, to my basic understanding its just
 loaded or freed, ect.
 build profiles are based on the default bundled mingw profile, i added a release profile for mingw, a profile using visual studio toolchain, and a release varient of it.
 MinGW Debug, MinGW Release, VS Debug, VS Release.
-everything is now built using the release mingw and vs profiles, for now im testing both versions and learning the differences.
+everything is now built using the release mingw and vs profiles on x86_x64 windows 11, for now im testing both versions and learning the differences.
 the previous executables were built using the run option so it defaulted to debug mingw.
+ok now i need to make a basic dll.
+but first, i do have a basic understanding of how the injector works but some of the win32 api stuff is hard to understand especially for me so here is a in depth ai explenation:
+The provided code implements a classic Windows API techniques known as Remote Thread Injection via LoadLibraryA. Because every process on Windows runs within its own isolated Virtual Address Space, one process cannot directly call functions or pass pointers to another process.
+The injection routine bridges this isolation through six sequential kernel-level steps:
+1. 	Acquiring Process Handle (OpenProcess)
+C++:		HANDLE Proc = OpenProcess(CREATE_THREAD_ACCESS, FALSE, ProcessID);
+Mechanism: The code calls OpenProcess to request access to the target process kernel object (EPROCESS). It requests specific access flags defined by CREATE_THREAD_ACCESS:
+PROCESS_CREATE_THREAD: Permission to spawn remote threads.
+PROCESS_VM_OPERATION: Permission to modify the virtual address space (needed for allocation).
+PROCESS_VM_WRITE & PROCESS_VM_READ: Permission to write and read target memory.
+OS Behavior: The NT Kernel checks Security Descriptors and Integrity Levels (e.g., non-admin processes cannot open handle access to administrative or system processes). If authorized, the OS returns a HANDLE mapped into the caller’s handle table.
+2. Resolving the Loader Function Pointer (GetProcAddress)
+C++:		LoadLibAddy = (LPVOID)GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
+Mechanism: The host process looks up the memory address of the LoadLibraryA function inside its own loaded instance of kernel32.dll.
+Why this works remotely: Core system DLLs (kernel32.dll, ntdll.dll) are loaded at identical virtual base addresses across every process during a single Windows boot session (due to how Address Space Layout Randomization, or ASLR, assigns system module bases on boot). Therefore, the memory address of LoadLibraryA in the host process is identical to its address in the target process.
+3. 	Remote Memory Allocation (VirtualAllocEx)
+C++:		RemoteString = (LPVOID)VirtualAllocEx(Proc, NULL, strlen(DLL_PATH) + 1, MEM_COMMIT, PAGE_READWRITE);
+Mechanism: Because memory addresses are local to each process's Virtual Memory Manager, passing a local string pointer to another process would cause an invalid memory access (segfault/crash).
+OS Behavior: VirtualAllocEx instructs the kernel to allocate and commit physical page frames mapped to the target process’s Virtual Address Descriptor (VAD) tree.
+MEM_COMMIT: Allocates actual physical memory/paging space.
+PAGE_READWRITE: Sets page protection flags to allow writing the path string.
+4. 	Writing Across Process Memory Boundaries (WriteProcessMemory)
+C++:		WriteProcessMemory(Proc, RemoteString, (LPVOID)DLL_PATH, strlen(DLL_PATH)+1, NULL);
+Mechanism: Copies the null-terminated ANSI string containing the DLL file path from the local host process buffer (DLL_PATH) into the newly allocated remote address (RemoteString).
+OS Behavior: The OS kernel handles the memory transfer across address spaces using internal page-mapping routines (such as MmCopyVirtualMemory), writing the bytes directly into the target process's committed RAM pages.
+5. 	Spawning Remote Execution (CreateRemoteThread)
+C++:		CreateRemoteThread(Proc, NULL, NULL, (LPTHREAD_START_ROUTINE)LoadLibAddy, RemoteString, NULL, NULL);
+Mechanism: CreateRemoteThread creates a new execution thread (ETHREAD) inside the target process.
+Function Signature Alignment:
+A standard Win32 thread entry point requires: DWORD WINAPI ThreadProc(LPVOID lpParameter)
+LoadLibraryA requires: HMODULE WINAPI LoadLibraryA(LPCSTR lpLibFileName)
+Because both use the standard calling convention (__stdcall on x86, standard register passing on x64) and accept a single pointer parameter, LoadLibraryA can be passed directly as the thread entry function pointer, with RemoteString passed as its single parameter.
+Target OS Loader Action: When the new thread executes inside the target process, it immediately calls LoadLibraryA(RemoteString). This triggers the Windows PE loader (ntdll!LdrLoadDll), which:
+Opens and reads the DLL file from disk.
+Maps the PE sections (.text, .data, .rdata) into the target's address space.
+Resolves necessary import tables.
+Calls the DLL's entry point (DllMain) with DLL_PROCESS_ATTACH.
+6. 	Resource Cleanup (CloseHandle)
+C++:		CloseHandle(Proc);
+Mechanism: Decrements the Kernel Object Reference Count for the target process handle. The memory allocated in the target process remains committed while the thread runs.
+i will study this more later, ill learn exactly how the code works. this is a good video writing and explaining everything step by step https://www.youtube.com/watch?v=2Y4nwJVLlqw, but for now we need to write that dll.
