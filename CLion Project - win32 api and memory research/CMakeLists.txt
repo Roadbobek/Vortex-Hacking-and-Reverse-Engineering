@@ -4,3 +4,8 @@ project(CLion_Project___win32_api_and_memory_research)
 set(CMAKE_CXX_STANDARD 20)
 
 add_executable(basic_dll_injector bnuyhook_v1_basic_dll_injector.cpp)
+
+add_library(basic_message_box_dll SHARED basic_message_box_dll.cpp)
+target_link_libraries(basic_message_box_dll PRIVATE user32)
+
+add_library(basic_threaded_dll SHARED basic_threaded_dll.cpp)

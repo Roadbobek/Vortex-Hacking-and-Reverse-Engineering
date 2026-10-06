@@ -266,4 +266,139 @@ Calls the DLL's entry point (DllMain) with DLL_PROCESS_ATTACH.
 6. 	Resource Cleanup (CloseHandle)
 C++:		CloseHandle(Proc);
 Mechanism: Decrements the Kernel Object Reference Count for the target process handle. The memory allocated in the target process remains committed while the thread runs.
-i will study this more later, ill learn exactly how the code works. this is a good video writing and explaining everything step by step https://www.youtube.com/watch?v=2Y4nwJVLlqw, but for now we need to write that dll.
+i will study this more later, ill learn exactly how the code works. this is a good video writing and explaining everything step by step https://www.youtube.com/watch?v=2Y4nwJVLlqw,
+but for now we need to write that dll.
+later i will annotate the injector and how each of the win32 api function calls works / what it does, its important to have a good understanding of general lower-level programming fundamentals,
+and windows fundamentals for studying win32 api.
+im gonna start taking some notes again now because this matters more to me.
+when coding a dll for injection we use the DllMain function to run the initial start code, altough its dangerous to do stuff here because of the loader lock so we should always spin off a
+thread to do all our real initialisation in, also i dont know what the loader lock is. the function signature is generally
+'BOOL APIENTRY DllMain(HMODULE hinstDLL, DWORD actionReason, LPVOID reservedPointer)', the reason i say generally is because it changes from resource to resource, even internal microsoft resources.
+the first keyword, the return type, here it is BOOL which is a typedef for int, this is what we used for win32 api functions in the injector. but in some internal windows resources the type BOOLEAN
+is used which is a typedef for a char, which is a lot more efficient.
+which should be used? actually disregard what i just said, looking into it BOOLEAN is used when interfacing with the kernel, not in userspace programming so we should always use BOOL as it is the
+correct way, BOOLEAN cannot be used as an int and char arent interchangeable. so this is false https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mscs/implementing-dllmain...
+for the second keyword, APIENTRY. ive never actually seen a function in c/c++ which has a keyword in between the return type and function name. first, depending on the resource the middle keyword
+will either be APIENTRY or WINAPI, APIENTRY is just a typedef for WINAPI, so they are the same thing, and WINAPI is a typedef for __stdcall, but what is the second keyword?
+the middle keyword is the calling convention specifier, a calling convention defines the low-level assembly contract between the caller (in this case, the windows os loader) and the called
+function (DllMain). it dictates three primary rules:
+stack cleanup (callee cleanup):
+__stdcall: the called function (callee) cleans up the stack before returning, it does this via assembly using ret N (where N is the total size of the parameters in bytes).
+__cdecl (C default): the caller cleans up the stack after the function returns.
+parameter passing order:
+parameters are pushed onto the execution stack from right to left
+lpvReserved (pushed 1st)
+fdwReason (pushed 2nd)
+hinstDLL (pushed 3rd)
+symbol name decoration:
+on 32bit compilers, __stdcall decorates the function name with a leading underscore and a trailing @ followed by the byte count of the parameters.
+for DllMain (3 pointers/4-byte DWORDs = 12 bytes), the exported/internal symbol name becomes _DllMain@12.
+why windows uses it?:
+in standard c and c++, the default calling convention is __cdecl (which supports variadic functions like printf).
+however, windows requires a single, rigid ABI (application binary interface) across all languages, tools, and compilers. by enforcing __stdcall on system callbacks (DllMain, WndProc, thread functions) and win32 apis:
+the os loader knows exactly how to push arguments and execute the function safely. mismatched stack cleanup errors are prevented across compiler boundaries.
+mote on 64-bit (x64 / ARM64), on 64-bit windows, microsoft abolished the distinct x86 calling conventions (__stdcall, __cdecl, __fastcall) in favor of a single unified x64 fastcall convention (passing the first 4 parameters in registers RCX, RDX, R8, R9).
+so on x64 compilers, __stdcall and WINAPI are simply ignored by the compiler, but they remain in source code for 32-bit backward compatibility, so we dont have to use them.
+now for the function arguments, (HMODULE hinstDLL, DWORD actionReason, LPVOID reservedPointer):
+hinstDLL of type HMODULE is a handle to the dll itself, the one we are inside of.
+the handle is a pointer to the base virtual memory address where the dll image is mapped in the processs memory space, often passed to functions like GetModuleFileName or FindResource.
+at this exact address resides the dlls IMAGE_DOS_HEADER (which starts with the ascii signature "MZ").
+but you will often see the type HINSTANCE being used in place, as HMODULE is a typedef of HINSTANCE it doesnt
+matter this way is just more organised i guess. so HMODULE is a typedef of HINSTANCE, and HINSTANCE is a typedef of 'struct HINSTANCE__ *HINSTANCE'
+(DECLARE_HANDLE (HINSTANCE); -> #define DECLARE_HANDLE(name) struct name##__ { int unused; }; typedef struct name##__ *name), meaning HINSTANCE is a pointer to an unimplemented struct, HINSTANCE__.
+there is no further definition or implementation for the HINSTANCE__ struct, its just 'struct HINSTANCE__'. the struct is never actually created in memory, so why is this done and where does the value live? 
+since the HINSTANCE__ struct is never implemented, the HINSTANCE pointer points to nothing, until the DllMain function is ran and windows writes the dlls address in memory to HINSTANCE. ? ? ?? ? ? ? ? ?
+note, the reason HINSTANCE and HMODULE both exist while being identical isnt only for seperation, but in 16 bit windows, win16, HINSTANCE (instance of a program with its own data) and HMODULE
+(loaded code module) were distinct. since 32 bit windows introduced isolated virtual address spaces, every instance has its own address space, making HINSTANCE and HMODULE functionally identical.
+ignore that, this is a better explanation.
+since the struct is never instantiated in code, its never made so its never in memory so HINSTANCE/HMODULE does not point to it.
+HINSTANCE__ is bascially just a dummy structure it has no internals, no implementation, it is never defined further, nor is an instance of HINSTANCE__ ever instantiated in memory.
+this technique is called strict handle typing (or an opaque phantom type). if handles were simply defined as 'typedef void* HANDLE;', c/c++ compilers would allow you to pass a window handle (HWND)
+into a function expecting a module handle (HINSTANCE) without raising an error. by defining each handle as a pointer to a distinct, incomplete struct, the compiler enforces strict type checking
+at compile time without adding any runtime or memory overhead.
+so we know that HMODULE/HINSTANCE is a pointer, in definiton it is 'struct HINSTANCE__ *HINSTANCE'. but the struct it seamingly points to is never instantiated.
+wait nevermind, but the HMODULE/HINSTANCE moduleHandle variable is being defined, not created in the function definition, im lowk very tired so i am not thinking straight.
+the 'variable' moduleHandle doesnt exist, thats just what the function wants you to pass, or windows to pass since windows calls it.
+genuinely ignore everything i said i havent slept more than a couple hours for almost a week.
+okay so from my memory, the HMODULE/HINSTANCE data type is passed into the DllMain entry function as the first paramater, by the operating system.
+this data type expands into 'struct HINSTANCE__ *HINSTANCE' ('struct HINSTANCE__ { int unused; }'), this does 2 things.
+declares an incomplete type, it introduces a structure named struct HINSTANCE__ without  futher implementation, not defining its contents or member fields.
+creates a type alias, it defines HINSTANCE as an alias for a pointer to that structure (struct HINSTANCE__*).
+remember 'struct HINSTANCE__ *HINSTANCE' and 'struct HINSTANCE__* HINSTANCE' function identically.
+so HINSTANCE is treated as a pointer to an unimplemented struct, HINSTANCE__. remember, HINSTANCE is NOT a pointer to a struct in memory since its never implemented or instantiated further,
+since HINSTANCE represents a pointer to a declared but unimplemented, non further defined struct, HINSTANCE__, it is intentionally left as an incomplete type (an opaque pointer), you cannot create an
+instance of struct HINSTANCE__ or access members.
+since the struct is an incomplete type, no instance of the struct can be created, allowing the compiler to define the pointer HINSTANCE without knowing the HINSTANCE__ structs internal size or members.
+this creates an opaque handle, meaning the type is used exclusively as a reference or identifier, "a magic cookie", rather than a direct data structure.
+this means HMODULE/HINSTANCE functions as a pointer, you can pass it by value to functions, store it in variables, and compare it (eg, check if it is NULL), but you cannot dereference it or
+perform pointer arithmetic on it because the compiler does not know the size of the underlying object, since it is undefined, 'struct HINSTANCE__ *HINSTANCE' / 'struct HINSTANCE__ { int unused; }'.
+this is done for type safety, by defining HINSTANCE as a pointer to a specific incomplete struct, the compiler prevents accidental mixing of different handle types, for eg, you cannot assign an HWND to an HINSTANCE.
+runtime behavior is identical, the value in the register is the same 8 byte pointer either way. STRICT only changes what the compiler thinks the type is, compiled code is identical:
+Handle Type.											With STRICT						Without STRICT
+HMODULE													struct HMODULE__ *				void *
+HINSTANCE												struct HINSTANCE__ *			void *
+HWND													struct HWND__ *					void *
+Can you pass HWND where HMODULE is expected?			No — compile error				Yes — silently compiles
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#ifdef STRICT
+    typedef struct HINSTANCE__ *HINSTANCE;
+    typedef struct HWND__ *HWND;
+#else
+    typedef void *HANDLE;
+    typedef HANDLE HINSTANCE;
+    typedef HANDLE HWND;
+#endif
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+'typedef struct HINSTANCE__ *HINSTANCE;' and 'typedef void *HANDLE;' can both be used interchangeably, they function identically at runtime.
+so 'typedef struct HINSTANCE__ *HINSTANCE' and 'typedef HANDLE HINSTANCE' + 'typedef void *HANDLE' both work,
+so microsoft uses this technique to enforce strict compile-time type checking in c and c++ (controlled via the #define STRICT macro in windows.h).
+(note, both compilers used by ms visual studio and mingw toolchains define STRICT by default.)
+thats the entire difference. its a opaque handle / phantom type pattern trick, each handle type gets its own anonymous undefined struct, so the compiler treats them as incompatible pointer types.
+no code is generated for the struct (its empty, (int unused)), no memory is allocated, no indirection happens. itss purely a compile-time type system feature.
+why does it exist, like said before, In win16, HINSTANCE and HMODULE were different things (per-instance data vs code segment). in win32 they collapsed to the same value (base address),
+but microsoft kept both names for api compatibility. STRICT was added so that at least the compiler would stop you from mixing up HWND, HDC, HBRUSH, HMODULE, etc.
+all of which are just pointer-sized values at runtime. 
+what it points to: the IMAGE_DOS_HEADER of the loaded module (base address of the PE image). 
+what the compiler sees (STRICT): a pointer to a unique, empty, named struct per handle type, a "tagged pointer" for type safety. 
+what the compiler sees (no STRICT): plain void*,  all handles interchangeable, no type checking, less safety, fails silently.
+runtime difference: none, same bytes in the register either way.
+minor correction*,
+struct completeness, i said "incomplete type" and "declared but unimplemented struct" but in reality inside windef.h,
+DECLARE_HANDLE uses struct name##__ { int unused; };, so the HINSTANCE__ struct actually does have an implementation meaning it is a complete type, although it is of a singe type int unused.
+however, it is used strictly as a dummy structure that is never instantiated. so previously saying that it cannot be created / instantiated is also wrong.
+if microsoft had written a true forward declaration without a body, 'struct HINSTANCE__;', it would be an incomplete type, in that case, attempting to instantiate it would trigger a compile error.
+also, previously in HINSTANCE__ structs definition, { int unused; }, i thought unused couldve been a special keyword but it is just a variable name, the int unused is never defined.
+ive been using the words decleration and definition a bit loosely so i want to clear up my understanding:
+declaration:
+declares an entitys name and type to the compiler so it can be referenced before it is fully described, it doesnt allocate memory or provide body code.
+extern int score;      	 variable declaration (no memory allocated yet)
+void displayScore();     function declaration / prototype
+class Player;          	 forward class declaration
+struct Player {
+    int health; 		 member declaration (allocated when a Player object is created)
+};
+definition:
+provides the full specification of an variable / entity, causing the compiler or linker to allocate memory for variables or layout structures. every definition counts as a declaration.
+int score = 100;          variable definition (allocates memory and initializes)
+int health; 			  global definition (allocated and automatically initialized to 0)
+struct Player {           type definition (defines memory layout for Player)
+    std::string name;
+    int level;
+};
+void takeDamage() {
+    int health; 		  local definition (allocated, but value is garbage until assigned)
+}
+its easy to assume that 'int health' for eg is just a decleration, since no value is provided, but without the extern keyword or an explicit initializer is a definition,
+the compiler reserves memory for health and zero-initialises it.
+when defining a variable without a value, for eg with our 'int health' int example, the compiler always reserves memory for it without extern or an explicit initializer,
+but how that memory is handled depends on where you declare it:
+global / namespace scope: memory is allocated and automatically zero-initialized (health == 0).
+int health; 			  // global definition: allocated and initialized to 0.
+local scope (inside a function): memory is allocated on the stack, but it remains uninitialized, it holds an indeterminate "garbage" value.
+void takeDamage() {
+    int health; 		  // local definition: allocated, but value is garbage until assigned.
+}
+class / struct scope: declares a member variable inside the type definition. memory for health is allocated whenever an object of that class/struct is instantiated.
+struct Player {
+    int health; 		  // member declaration (allocated when a Player object is created).
+};
