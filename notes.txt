@@ -367,7 +367,14 @@ struct completeness, i said "incomplete type" and "declared but unimplemented st
 DECLARE_HANDLE uses struct name##__ { int unused; };, so the HINSTANCE__ struct actually does have an implementation meaning it is a complete type, although it is of a singe type int unused.
 however, it is used strictly as a dummy structure that is never instantiated. so previously saying that it cannot be created / instantiated is also wrong.
 if microsoft had written a true forward declaration without a body, 'struct HINSTANCE__;', it would be an incomplete type, in that case, attempting to instantiate it would trigger a compile error.
-also, previously in HINSTANCE__ structs definition, { int unused; }, i thought unused couldve been a special keyword but it is just a variable name, the int unused is never defined.
+but understanding what the HMODULE paramater of our function is, what is being passed by the os?
+first the HMODULE variable is defined inside the function arguments, because it is is defined as a pointer type (struct HINSTANCE__ *), the compiler does not need to know the size or layout of
+the struct HINSTANCE__ to work with HINSTANCE/HMODULE.
+(declared, in function prototypes) / defined, in function bodies), this is a function body so its a definition.
+the compiler knows that any pointer on the target platform has a fixed size (eg, 64 bits / 8 bytes on x86_64).
+it allocates 8 bytes on the stack frame when you define HMODULE/HINSTANCE hInst;.
+it generates machine code to copy, assign, and pass these 8 bytes into functions via cpu registers (eg, RCX on windows x64 ABI) or stack parameters.
+also, previously int the HINSTANCE__ struct definition, { int unused; }, i thought unused couldve been a special keyword but it is just a variable name, the int unused is never defined.
 ive been using the words decleration and definition a bit loosely so i want to clear up my understanding:
 declaration:
 declares an entitys name and type to the compiler so it can be referenced before it is fully described, it doesnt allocate memory or provide body code.
@@ -402,3 +409,20 @@ class / struct scope: declares a member variable inside the type definition. mem
 struct Player {
     int health; 		  // member declaration (allocated when a Player object is created).
 };
+now for the next paramater / argument.
+actionReason of type DWORD is the reason for calling the function, the os passes of one these values when calling the function: DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH, DLL_THREAD_ATTACH, DLL_THREAD_DETACH.
+these are actually just typedefs / aliases for regular ints:
+DLL_PROCESS_ATTACH (1) : the DLL is being mapped into the virtual address space of the calling process (via load-time static linking or dynamically via LoadLibrary).
+DLL_PROCESS_DETACH (0) : the DLL is being unmapped from the address space (via FreeLibrary or process termination).
+DLL_THREAD_ATTACH  (2) : a new thread is being created in the host process.
+DLL_THREAD_DETACH  (3) : a thread in the host process is terminating cleanly.
+and these values are being stored in a DWORD which is a typedef for unsigned __LONG32.
+for the next and last argument lpvReserved, of type LPVOID,
+it rovides context about whether the DLL is being loaded/unloaded statically or dynamically.
+During DLL_PROCESS_ATTACH: NULL if loaded dynamically via LoadLibrary; non-NULL if loaded statically at process initialization.
+During DLL_PROCESS_DETACH: NULL if unloaded via FreeLibrary; non-NULL if unloaded due to process termination.
+LPVOID is a typedef for void *LPVOID, LPVOID is a pointer to void, meaning LPVOID is created and a memory address is passed it holds a valid memory address (eg, 0x7FFF0000),
+but the compiler has no idea what kind of data lives at that address. void is just the generic pointer type, its untyped, as it has no specific type it can be assigned to a address of any typed object.
+so unlike the win32 handles like HMODULE, LPVOID is just a pointer to void, it can be used to point to any type, it stands for 'long pointer to VOID' (a leftover name from 16bit windows).
+an LPVOID provides only the memory address, leaving the data layout unspecified. this makes it useful as a universal passthrough in windows programming.
+value source ? ? ? ? ? ? ? ?  0 / 1 ? ? ? ?  soon.

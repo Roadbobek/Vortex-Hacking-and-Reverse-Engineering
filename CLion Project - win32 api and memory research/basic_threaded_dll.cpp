@@ -4,8 +4,8 @@
 // APIENTRY = calling convention specifier, 32-bit leftover.
 // DllMain(
 // HMODULE hinstDLL, = handle to the loaded module, base address of the PE image in memory, IMAGE_DOS_HEADER, address of DLL in memory.
-// DWORD fdwReason = reason for calling the function, (DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH, DLL_THREAD_ATTACH, DLL_THREAD_DETACH).
-// LPVOID lpvReserved = reserved, (serves as a boolean indicator to distinguish between static (implicit) and dynamic (explicit) DLL loading or unloading operations). ? ? ? ?
+// DWORD fdwReason = reason for calling the function, (DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH, DLL_THREAD_ATTACH, DLL_THREAD_DETACH (1, 0, 2, 3)).
+// LPVOID lpvReserved = serves as a boolean indicator to distinguish between static (implicit) and dynamic (explicit) DLL loading or unloading operations.
 // )
 
 BOOL APIENTRY DllMain(HMODULE moduleHandle, DWORD actionReason, LPVOID reservedPointer) {
