@@ -278,6 +278,7 @@ the first keyword, the return type, here it is BOOL which is a typedef for int, 
 is used which is a typedef for a char, which is a lot more efficient.
 which should be used? actually disregard what i just said, looking into it BOOLEAN is used when interfacing with the kernel, not in userspace programming so we should always use BOOL as it is the
 correct way, BOOLEAN cannot be used as an int and char arent interchangeable. so this is false https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mscs/implementing-dllmain...
+BOOL is a alias for an int, in internal resources TRUE and FALSE is often returned in the function, these are also just typedefs for int 0 / 1.
 for the second keyword, APIENTRY. ive never actually seen a function in c/c++ which has a keyword in between the return type and function name. first, depending on the resource the middle keyword
 will either be APIENTRY or WINAPI, APIENTRY is just a typedef for WINAPI, so they are the same thing, and WINAPI is a typedef for __stdcall, but what is the second keyword?
 the middle keyword is the calling convention specifier, a calling convention defines the low-level assembly contract between the caller (in this case, the windows os loader) and the called
@@ -444,3 +445,18 @@ however, they never ended up needing to pass a structure, instead of leaving the
 // LPVOID lpvReserved = serves as a boolean indicator to distinguish between static (implicit) and dynamic (explicit) DLL loading or unloading operations, (NULL / non-NULL).
 // )
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+thats the structure for the DllMain function, its obvious it is a entry point just like main is for a regular c/c++ program, it runs when the dll is attached or detached from the process,
+and when any thread is attached or detached in the process, any thread. ofc while passing the reason with fdwReason.
+for most of our needs we dont need DllMain to run whenever any thread attaches or detaches in the target process, but we can actually disable this behavious by running the DisableThreadLibraryCalls
+function inside of the DLL_PROCESS_ATTACH case on DllMains first run. this is the functions syntax:
+BOOL DisableThreadLibraryCalls(
+  [in] HMODULE hLibModule
+);
+the function returns the BOOL type as seen before. if the function succeeds, the return value is nonzero (non-NULL).
+if the function fails, the return value is zero (NULL). the DisableThreadLibraryCalls function fails if the dll specified by hModule has active static thread local storage,
+or if hModule is an invalid module handle. to get extended error information, call GetLastError.
+(here microsoft writes hModule instead of HMODULE but i thing its just a mistake.)
+here microsoft writes '[in]' infront of the functions argument, hLibModule. it is the paramater direction annotation, [in]	is input only, the function reads the value but doesnt modify it.
+[out] is output only, the function writes a value back to the caller and doesnt read it back. [in, out]	is both, the function reads and may modify the value.
+the first and only function argument here is hLibModule of type HMODULE which is just our hinstDLL argument inside of DllMain, being a handle to our dll module, a pointer to it in memory.
+so running DisableThreadLibraryCalls completely stops the OS from running the DllMain function on thread attachments / detachments, DLL_THREAD_ATTACH / DLL_THREAD_DETACH.
