@@ -424,5 +424,23 @@ During DLL_PROCESS_DETACH: NULL if unloaded via FreeLibrary; non-NULL if unloade
 LPVOID is a typedef for void *LPVOID, LPVOID is a pointer to void, meaning LPVOID is created and a memory address is passed it holds a valid memory address (eg, 0x7FFF0000),
 but the compiler has no idea what kind of data lives at that address. void is just the generic pointer type, its untyped, as it has no specific type it can be assigned to a address of any typed object.
 so unlike the win32 handles like HMODULE, LPVOID is just a pointer to void, it can be used to point to any type, it stands for 'long pointer to VOID' (a leftover name from 16bit windows).
+meaning it will not give you a type error unline the hjandle objects.
 an LPVOID provides only the memory address, leaving the data layout unspecified. this makes it useful as a universal passthrough in windows programming.
-value source ? ? ? ? ? ? ? ?  0 / 1 ? ? ? ?  soon.
+so LPVOID is simply used as a universal pointer in windows, it can hold a memory address to any data type.
+but here it is used to provide information on the dll during loading, lpvReserved does not actually work as a pointer, it does not point to a memory address containing a value.
+instead, the pointer variable itself directly holds the numeric value 0 or 1 (casted to LPVOID).
+when NULL (dynamic / FreeLibrary): lpvReserved holds the value 0x00000000.
+when non-NULL (static / process exit): lpvReserved holds the value 0x00000001 (or another non-zero integer value casted as (LPVOID)1).
+the name lpvReserved actrually gives it away, standing for 'long pointer to void (LPVOID) reserved', you cannot dereference this value or treat it as a pointer.
+when microsoft designed DllMain for windows NT, they reserved this 3rd parameter as a generic pointer so they could pass a complex context structure to dlls in future windows updates without breaking existing code signatures.
+however, they never ended up needing to pass a structure, instead of leaving the parameter completely unused, they reused the 4byte / 8byte pointer variable as a simple boolean flag,
+0 (NULL) = dynamic load / unload, 1 (non-NULL) = static load / process exit.
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// BOOL = return value used by windows to know if the dll was loaded / the DllMain function executed successfully.
+// APIENTRY = calling convention specifier, 32-bit leftover.
+// DllMain(
+// HMODULE hinstDLL, = handle to the loaded module, base address of the PE image in memory, IMAGE_DOS_HEADER, address of DLL in memory.
+// DWORD fdwReason = reason for calling the function, (DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH, DLL_THREAD_ATTACH, DLL_THREAD_DETACH, (1, 0, 2, 3)).
+// LPVOID lpvReserved = serves as a boolean indicator to distinguish between static (implicit) and dynamic (explicit) DLL loading or unloading operations, (NULL / non-NULL).
+// )
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
