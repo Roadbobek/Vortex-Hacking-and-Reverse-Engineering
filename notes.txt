@@ -279,6 +279,7 @@ is used which is a typedef for a char, which is a lot more efficient.
 which should be used? actually disregard what i just said, looking into it BOOLEAN is used when interfacing with the kernel, not in userspace programming so we should always use BOOL as it is the
 correct way, BOOLEAN cannot be used as an int and char arent interchangeable. so this is false https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mscs/implementing-dllmain...
 BOOL is a alias for an int, in internal resources TRUE and FALSE is often returned in the function, these are also just typedefs for int 0 / 1.
+*edit note, if the return value is FALSE, the LoadLibrary function used to load the dll running dllmain returns NULL, to get extended error information call GetLastError.
 for the second keyword, APIENTRY. ive never actually seen a function in c/c++ which has a keyword in between the return type and function name. first, depending on the resource the middle keyword
 will either be APIENTRY or WINAPI, APIENTRY is just a typedef for WINAPI, so they are the same thing, and WINAPI is a typedef for __stdcall, but what is the second keyword?
 the middle keyword is the calling convention specifier, a calling convention defines the low-level assembly contract between the caller (in this case, the windows os loader) and the called
@@ -413,15 +414,36 @@ struct Player {
 now for the next paramater / argument.
 actionReason of type DWORD is the reason for calling the function, the os passes of one these values when calling the function: DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH, DLL_THREAD_ATTACH, DLL_THREAD_DETACH.
 these are actually just typedefs / aliases for regular ints:
-DLL_PROCESS_ATTACH (1) : the DLL is being mapped into the virtual address space of the calling process (via load-time static linking or dynamically via LoadLibrary).
-DLL_PROCESS_DETACH (0) : the DLL is being unmapped from the address space (via FreeLibrary or process termination).
+DLL_PROCESS_ATTACH (1) : the dll is being mapped into the virtual address space of the calling process (via load-time static linking or dynamically via LoadLibrary).
+DLL_PROCESS_DETACH (0) : the dll is being unmapped from the address space (via FreeLibrary or process termination).
 DLL_THREAD_ATTACH  (2) : a new thread is being created in the host process.
 DLL_THREAD_DETACH  (3) : a thread in the host process is terminating cleanly.
 and these values are being stored in a DWORD which is a typedef for unsigned __LONG32.
-for the next and last argument lpvReserved, of type LPVOID,
-it rovides context about whether the DLL is being loaded/unloaded statically or dynamically.
-During DLL_PROCESS_ATTACH: NULL if loaded dynamically via LoadLibrary; non-NULL if loaded statically at process initialization.
+for the next and last argument lpvReserved, of type LPVOID.
+it rovides context about whether the dll is being loaded/unloaded statically or dynamically.
+During DLL_PROCESS_ATTACH: NULL if loaded dynamically via LoadLibrary; non-NULL if loaded statically at process initialisation.
 During DLL_PROCESS_DETACH: NULL if unloaded via FreeLibrary; non-NULL if unloaded due to process termination.
+* edit note, i didnt explain this very well so i hope this clears it up:
+lpvReserved tells the dll how it was loaded or unloaded so you know how safely to handle initialization and cleanup.
+during DLL_PROCESS_ATTACH:
+NULL: the dll was loaded dynamically while the program was running using LoadLibrary().
+non-NULL: the DLL was loaded statically at program launch via its import address table (IAT).
+during DLL_PROCESS_DETACH:
+NULL: The dll is being explicitly unloaded via FreeLibrary(), other dlls and process threads are still alive and usable for cleanup.
+non-NULL: the entire process is terminating, other threads and dependent dlls may already be forcibly destroyed, making complex cleanup (like waiting on threads or calling into other dlls) unsafe and prone to deadlocks.
+when a dll is unloaded dynamically using FreeLibrary() (lpvReserved == NULL), the rest of the application is still running normally, this means:
+other dlls are still in memory: functions exported by other dlls (like kernel32.dll, user32.dll, or custom c++ libs) are still loaded and fully functional.
+you can safely call them, flush file buffers, release COM objects, or write to logs.
+other threads are still executing: all other background threads in the process are running. you can signal them to stop, send thread messages, or safely wait for them to
+finish before your dll disappears from memory.
+why this changes during process termination (lpvReserved != NULL),
+when the entire program is shutting down (for eg, ExitProcess is called):
+other threads are forcibly killed, the OS kernel forcibly terminates all other threads in the process before calling DLL_PROCESS_DETACH.
+if your cleanup code tries to wait for a thread to exit, it will lock up forever (deadlock).
+other dlls may already be unmapped, windows does not guarantee a safe unload order for independent dlls. a library your dll depends on might already be wiped from memory.
+calling a function inside that dll will trigger an access violation (crash).
+i will handle safe initialisation and cleanup later so this this is important.
+*
 LPVOID is a typedef for void *LPVOID, LPVOID is a pointer to void, meaning LPVOID is created and a memory address is passed it holds a valid memory address (eg, 0x7FFF0000),
 but the compiler has no idea what kind of data lives at that address. void is just the generic pointer type, its untyped, as it has no specific type it can be assigned to a address of any typed object.
 so unlike the win32 handles like HMODULE, LPVOID is just a pointer to void, it can be used to point to any type, it stands for 'long pointer to VOID' (a leftover name from 16bit windows).
@@ -430,14 +452,14 @@ an LPVOID provides only the memory address, leaving the data layout unspecified.
 so LPVOID is simply used as a universal pointer in windows, it can hold a memory address to any data type.
 but here it is used to provide information on the dll during loading, lpvReserved does not actually work as a pointer, it does not point to a memory address containing a value.
 instead, the pointer variable itself directly holds the numeric value 0 or 1 (casted to LPVOID).
-when NULL (dynamic / FreeLibrary): lpvReserved holds the value 0x00000000.
-when non-NULL (static / process exit): lpvReserved holds the value 0x00000001 (or another non-zero integer value casted as (LPVOID)1).
+when NULL (dynamic (LoadLibrary) / FreeLibrary): lpvReserved holds the value 0x00000000.
+when non-NULL (static (process initialisation) / process exit): lpvReserved holds the value 0x00000001 (or another non-zero integer value casted as (LPVOID)1).
 the name lpvReserved actrually gives it away, standing for 'long pointer to void (LPVOID) reserved', you cannot dereference this value or treat it as a pointer.
 when microsoft designed DllMain for windows NT, they reserved this 3rd parameter as a generic pointer so they could pass a complex context structure to dlls in future windows updates without breaking existing code signatures.
-however, they never ended up needing to pass a structure, instead of leaving the parameter completely unused, they reused the 4byte / 8byte pointer variable as a simple boolean flag,
+however, they never ended up needing to pass a structure, instead of leaving the parameter completely unused, they reused the 4byte / 8byte pointer variable as a simple boolean flag.
 0 (NULL) = dynamic load / unload, 1 (non-NULL) = static load / process exit.
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-// BOOL = return value used by windows to know if the dll was loaded / the DllMain function executed successfully.
+// BOOL = return value used by windows to know if the DLL was loaded / the DllMain function executed successfully, typedef for an int 0 / 1.
 // APIENTRY = calling convention specifier, 32-bit leftover.
 // DllMain(
 // HMODULE hinstDLL, = handle to the loaded module, base address of the PE image in memory, IMAGE_DOS_HEADER, address of DLL in memory.
@@ -460,3 +482,12 @@ here microsoft writes '[in]' infront of the functions argument, hLibModule. it i
 [out] is output only, the function writes a value back to the caller and doesnt read it back. [in, out]	is both, the function reads and may modify the value.
 the first and only function argument here is hLibModule of type HMODULE which is just our hinstDLL argument inside of DllMain, being a handle to our dll module, a pointer to it in memory.
 so running DisableThreadLibraryCalls completely stops the OS from running the DllMain function on thread attachments / detachments, DLL_THREAD_ATTACH / DLL_THREAD_DETACH.
+since DllMain is the entry function for a dll, i assumed you can simply treat it like a regular c/c++ entry function, but no.
+the reason for this is quiet a complex topic, i recommend reading this article and others like it, http://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-best-practices.
+but i will try to explain it simply so we can understand its implications and ways to work around it.
+when windows loads a dll into a process, it uses an internal synchronization lock known as the loader lock.
+during DLL_PROCESS_ATTACH in DllMain, the automatically created thread executes while holding this loader lock. because the OS prevents other thread initializations or library operations
+(for eg: LoadLibrary, FreeLibrary, ect) while this lock is held, doing heavy work or waiting on other threads inside DllMain frequently causes a deadlock (a state where the process hangs indefinitely).
+to prevent this, the standard technique in dll injection is to use DllMain solely to kick off a new thread using CreateThread and then exit DllMain successfully immediately to release the loader lock.
+[ load library -> (aquire loader lock) -> dllmain -> setup/initialisation -> (release loader lock) -> return]
+* deleted Vortex-0.5.5-20.09.26.exe from repo as its not the newest version nor has been used by me.

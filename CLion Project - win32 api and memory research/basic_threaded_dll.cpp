@@ -1,6 +1,6 @@
 #include <windows.h>
 
-// BOOL = return value used by windows to know if the dll was loaded / the DllMain function executed successfully, typedef for an int 0/1.
+// BOOL = return value used by windows to know if the DLL was loaded / the DllMain function executed successfully, typedef for an int 0 / 1.
 // APIENTRY = calling convention specifier, 32-bit leftover.
 // DllMain(
 // HMODULE hinstDLL, = handle to the loaded module, base address of the PE image in memory, IMAGE_DOS_HEADER, address of DLL in memory.
