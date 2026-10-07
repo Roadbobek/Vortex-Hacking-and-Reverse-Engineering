@@ -18,5 +18,6 @@ BOOL APIENTRY DllMain(HMODULE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
         MessageBoxA(nullptr, "(  \\_/  )  Goodbye from BNUYHOOK...\n(> . o)  The DLL is being unloaded from the process.", "BNUYHOOK - DLL_PROCESS_DETACH", MB_OK | MB_ICONWARNING);
         break;
     }
-    return TRUE; // dll successfully loaded, #define TRUE 1.
+    return TRUE; // dll successfully loaded, TRUE = int 1.
 }
+

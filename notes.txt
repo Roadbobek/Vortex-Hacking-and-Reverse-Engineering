@@ -427,7 +427,7 @@ During DLL_PROCESS_DETACH: NULL if unloaded via FreeLibrary; non-NULL if unloade
 lpvReserved tells the dll how it was loaded or unloaded so you know how safely to handle initialization and cleanup.
 during DLL_PROCESS_ATTACH:
 NULL: the dll was loaded dynamically while the program was running using LoadLibrary().
-non-NULL: the DLL was loaded statically at program launch via its import address table (IAT).
+non-NULL: the DLL was automatically loaded statically at program launch via its import address table (IAT).
 during DLL_PROCESS_DETACH:
 NULL: The dll is being explicitly unloaded via FreeLibrary(), other dlls and process threads are still alive and usable for cleanup.
 non-NULL: the entire process is terminating, other threads and dependent dlls may already be forcibly destroyed, making complex cleanup (like waiting on threads or calling into other dlls) unsafe and prone to deadlocks.
@@ -491,3 +491,46 @@ during DLL_PROCESS_ATTACH in DllMain, the automatically created thread executes 
 to prevent this, the standard technique in dll injection is to use DllMain solely to kick off a new thread using CreateThread and then exit DllMain successfully immediately to release the loader lock.
 [ load library -> (aquire loader lock) -> dllmain -> setup/initialisation -> (release loader lock) -> return]
 * deleted Vortex-0.5.5-20.09.26.exe from repo as its not the newest version nor has been used by me.
+what about safely handling exits? like what if the target process our dll is inside of suddenly exits or crashes, or what if our dll is unloaded somehow?
+this is a template from 'https://learn.microsoft.com/en-us/windows/win32/dlls/dllmain':
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+BOOL WINAPI DllMain(
+    HINSTANCE hinstDLL,  // handle to DLL module
+    DWORD fdwReason,     // reason for calling function
+    LPVOID lpvReserved )  // reserved
+{
+    // Perform actions based on the reason for calling.
+    switch( fdwReason ) 
+    { 
+        case DLL_PROCESS_ATTACH:
+         // Initialize once for each new process.
+         // Return FALSE to fail DLL load.
+            break;
+
+        case DLL_THREAD_ATTACH:
+         // Do thread-specific initialization.
+            break;
+
+        case DLL_THREAD_DETACH:
+         // Do thread-specific cleanup.
+            break;
+
+        case DLL_PROCESS_DETACH:
+        
+            if (lpvReserved != nullptr)
+            {
+                break; // do not do cleanup if process termination scenario
+            }
+            
+         // Perform any necessary cleanup.
+            break;
+    }
+    return TRUE;  // Successful DLL_PROCESS_ATTACH.
+}
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+we see here, if lpvReserved is not null / non-NULL, which as outlined before occurs in DLL_PROCESS_DETACH when the dll is unloaded due to the target processes termination,  we do not perform
+any cleanup. since the target process has terminated any memory and resources utilised by the process, which our dll is running within, will be automatically cleaned up by windows.
+if lpvReserved is null, the previous if statement doesnt run and doesnt break out of the DLL_PROCESS_DETACH case causing the rest of the code to run.
+that code as noted "Perform any necessary cleanup" is where we should perform any cleanup, like freeing memory for example.
+this is because during DLL_PROCESS_DETACH, lpvReserved holds a null value when the dll is unloaded dynamically with FreeLibrary. meaning the host process stays running and only our dll is unloaded,
+so you must free heap memory, unhook functions, close threads so the living process doesnt leak or call dead memory, ect.
