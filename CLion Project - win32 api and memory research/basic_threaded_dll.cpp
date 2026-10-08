@@ -14,10 +14,21 @@ BOOL APIENTRY DllMain(HMODULE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
         MessageBoxA(nullptr, "(  \\_/  )  Hello from BNUYHOOK!\n(> . o)  The DLL was loaded into the process.", "BNUYHOOK - DLL_PROCESS_ATTACH", MB_OK | MB_ICONWARNING); // yo whats up
         DisableThreadLibraryCalls(hinstDLL); // disables running DllMain on every thread attachment and detachment in target process.
         break;
+
     case DLL_PROCESS_DETACH:
         MessageBoxA(nullptr, "(  \\_/  )  Goodbye from BNUYHOOK...\n(> . o)  The DLL is being unloaded from the process.", "BNUYHOOK - DLL_PROCESS_DETACH", MB_OK | MB_ICONWARNING);
+
+        // perform cleanup on dynamic exit (FreeLibrary)
+        // since only our dll is terminating the target process stays running,
+        // so we need to perform any cleanup here. if lpvReserved is not null,
+        // the target process is terminating so we dont need to perform any cleanup.
+        if (lpvReserved == nullptr)
+        {
+            // cleanup code goes here, remove break
+            break;
+        }
+
         break;
     }
     return TRUE; // dll successfully loaded, TRUE = int 1.
 }
-
