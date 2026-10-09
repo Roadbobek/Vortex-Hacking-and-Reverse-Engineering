@@ -1,8 +1,8 @@
 i want to try writing a script executor like the ones seen for roblox but for the ugc gaming platform vortex (playvortex.io), its a copy of roblox, and just like roblox, it uses luau for scripting.
-i have experience writing lua and its derivitives like luau but ive never implemented or worked with the lua virtual machine closely, altough its easy to infer what it is and does.
+i have experience writing lua and its derivitives like luau but ive never implemented or worked with the lua virtual machine closely, alhtough its easy to infer what it is and does.
 i assumed that the script executor finds and hooks into the luau virtual machine to inject luau bytecode directly into the running game client.
 i couldnt find any info on exploiting a lua virtual machine to inject bytecode, nor could i find any meaningful roblox specific information.
-after asking google gemini it put together a basic overview of how it works for roblox, supporting what i thought before, altough a roblox executor also does some interesting things to elevate
+after asking google gemini it put together a basic overview of how it works for roblox, supporting what i thought before, alhtough a roblox executor also does some interesting things to elevate
 privelages and what code can run.
 here is the overview it gave me for roblox script executors.
 1. Process Memory Injection
@@ -36,7 +36,7 @@ but i fist i am curious to see if there are any decent open source script execut
 reality when searching for technical information tutorials just use pre-made apis.
 i can also try to find one of the apis used by the script executors if they are open source.
 having a look on github and having google gemini analyse 2 different executors it showed that they operate in varying ways, i also got google gemini to find me some information on lua virtual
-machine exploitation and bytecode injection. altough the lua and luau virtual machines differ a good amount so the same methodology doesnt work.
+machine exploitation and bytecode injection. alhtough the lua and luau virtual machines differ a good amount so the same methodology doesnt work.
 i compiled the outputs from a couple different gemini chats into one big prompt so i have some general guidance for the start, like i said before ill follow a general guide first.
 using ghidra 12.1.2 i opened the vortex client executable and did the automated scan.
 logically i know i am going to be comparing a lot of compiled and decompiled pseudo-c code to the luau compiled assembly and source code, so first i want to find out what version the vortex
@@ -89,7 +89,7 @@ looking at the source code the 'LBC_VERSION_' variables are only used for one th
         return 1;
     }
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-we see its used to throw an error message when there is a luau bytecode and virtual machine mismatch, altough it doesnt really matter because we have already found something useful.
+we see its used to throw an error message when there is a luau bytecode and virtual machine mismatch, alhtough it doesnt really matter because we have already found something useful.
 here we have a error message, a string, which we can search for in the binary within ghidra.
 for now we will ignore the second source file utilising these variables.
 searching for the string "%s: bytecode version mismatch (expected [%d..%d], got %d)" in ghidra we get 1 hit on the address '146cdcec8', the address/string has one xref pointing to it, '1466f0f05':
@@ -202,7 +202,7 @@ since the lua_State pointer is shared between every child lua_State thread, it j
 implementation and use of it in your own ebeddeding code.
 we can simply get any function that has the pointer as one of its arguments and then retreieve it live by hooking onto the function and saving the argument, a purpose built library like tinyhook
 could be used but i would do it on my own.
-thats one way, another way could be to use the injected dll to execute built in functions to retreive it for us, idk if this would work but ive seen examples of it, altough they do include more
+thats one way, another way could be to use the injected dll to execute built in functions to retreive it for us, idk if this would work but ive seen examples of it, alhtough they do include more
 complex logic like decryption.
 for now i think the first option would be better, to learn and for a result. but with any of those methods i need to learn how to write a dll, write a dll injector, then work closely with the
 program utilising the win32 api.
@@ -213,13 +213,13 @@ i made a new clion project to learn the basic windows api stuff and whatnot, i c
 the project is in 'CLion Project - win32 api and memory research'.
 i am gonna take less notes here now im gonna follow some videos and papers to make a simple dll injector, so ill have notes and explentations in my code comments.
 and to be honest i dont think these notes increase my productivity or output much, with simpler things they slow me down.
-i actually do not have much c/c++ expeience altough i have done courses for both i have little experience using them and ive never used win32api but im pretty happy with nyself for now.
+i actually do not have much c/c++ expeience alhtough i have done courses for both i have little experience using them and ive never used win32api but im pretty happy with nyself for now.
 i wrote a basic dll injector and im working on making it a bit usable with a way to select the dll for injection.
 i havent had much time to work on it but now it has a little selector for the process and dll and successfully injects so thats good.
 im only a begginer c/c++ dev most of my knowledge is just theory so this code isnt very good, even with the things i have learnt i have to re-call since i have not used them since.
 but im happy with it, it works fine, and i learnt a good bit.
 i first watched a short youtube video on a basic dll injector but even i could see the code was crappy so i read a old stack overflow thread, re-writing the basics of the injector while reading
-and learning some of the win32 api, and also re-writing parts of it to be better and use modern c++ features. altough a lot of it can be done better, but idc.
+and learning some of the win32 api, and also re-writing parts of it to be better and use modern c++ features. alhtough a lot of it can be done better, but idc.
 now i need to learn how to write a basic dll, to my basic understanding its just a regular source file compiled as a dll, but it also gives you access to some functions that run when the dll is
 loaded or freed, ect.
 build profiles are based on the default bundled mingw profile, i added a release profile for mingw, a profile using visual studio toolchain, and a release varient of it.
@@ -271,7 +271,7 @@ but for now we need to write that dll.
 later i will annotate the injector and how each of the win32 api function calls works / what it does, its important to have a good understanding of general lower-level programming fundamentals,
 and windows fundamentals for studying win32 api.
 im gonna start taking some notes again now because this matters more to me.
-when coding a dll for injection we use the DllMain function to run the initial start code, altough its dangerous to do stuff here because of the loader lock so we should always spin off a
+when coding a dll for injection we use the DllMain function to run the initial start code, alhtough its dangerous to do stuff here because of the loader lock so we should always spin off a
 thread to do all our real initialisation in, also i dont know what the loader lock is. the function signature is generally
 'BOOL APIENTRY DllMain(HMODULE hinstDLL, DWORD actionReason, LPVOID reservedPointer)', the reason i say generally is because it changes from resource to resource, even internal microsoft resources.
 the first keyword, the return type, here it is BOOL which is a typedef for int, this is what we used for win32 api functions in the injector. but in some internal windows resources the type BOOLEAN
@@ -534,3 +534,70 @@ if lpvReserved is null, the previous if statement doesnt run and doesnt break ou
 that code as noted "Perform any necessary cleanup" is where we should perform any cleanup, like freeing memory for example.
 this is because during DLL_PROCESS_DETACH, lpvReserved holds a null value when the dll is unloaded dynamically with FreeLibrary. meaning the host process stays running and only our dll is unloaded,
 so you must free heap memory, unhook functions, close threads so the living process doesnt leak or call dead memory, ect.
+but actually no, because doing certain cleanup directly within DllMain is dangerous, for the same reason as before, the loader lock.
+whenever windows executes DllMain, for attach or detach, it acquires a process wide mutex being the loader lock. doing heavy cleanup, just as initialisation, while holding this lock causes serious issues.
+if the  cleanup needs to stop a background worker thread or unhook code safely, you usually have to wait for that thread to finish (WaitForSingleObject(hThread)).
+a thread cannot start or exit without acquiring the loader lock, if DllMain holds the loader lock while waiting for a worker thread to exit, and that worker thread is waiting for the loader lock
+to clean itself up, the target process deadlocks instantly.
+for example if the injected dll hooks into other functions,
+to safely unhook, you must ensure no other threads are currently executing inside your hook code.
+checking and waiting for other threads to leave your hook functions requires thread synchronization, which fails or deadlocks under the loader lock.
+also, a lot of critical win32 api functions cannot be ran within DllMain since they can internally try to acquire locks or load other resources, leading to deadlocks or access violations.
+okay well how do we handle cleanup then? lets think of all the scenarios.
+either the dll can be unloaded by FreeLibrary (dynamoc exit) (DLL_PROCESS_DETACH -> lpvReserved = NULL) or by the target process terminating (DLL_PROCESS_DETACH -> lpvReserved = non-NULL).
+if the target process is terminating, all the memory utilised by it will be freed and cleaned up by windows, so we dont need to do anything.
+when the module is unloaded dynamically with FreeLibrary, the target process stays alive.
+windows unmaps and frees the actual dll code (.text segment in binary) from the process, the virtual memory addresses where the dlls functions lived become unallocated (MEM_FREE).
+any thread attempting to read or execute instructions at those addresses will trigger an access violation crash (0xC0000005).
+static / global variables (.data, .bss, .rdata) also are unmapped along with the dll image, all global variables, strings, and static objects stored within the dllss binary structure cease to exist.
+but dynamically allocated heap memory, the memory managed during runtime (malloc, new, VirtualAlloc), all exist on the target processes global heap.
+remember this is for anything dynamic that the dll does, including creating threads for example. (note that a thread lives partly in user space, process memory, and the kernel memory.)
+unmapping/unloading the dll does not automatically free this memory, if the dll allocated memory with malloc or new and unloads without freeing it, that memory remains allocated, causing a memory leak.
+direct virtual memory (VirtualAlloc), if the dll manually called VirtualAlloc and did not call VirtualFree prior to unloading, that virtual memory block remains committed in the process.
+remember that any code a process is running, like a thread made by a dll, is just machine code instructions sitting in memory. the CPU has to be instructed to jump and execute anything it does.
+okay, in this scenario (FreeLibrary exit):
+FreeLibrary can be called from within the dll (from a thread).
+it can be called from the target process itself.
+or another process can perform dll ejection by creating a remote thread inside the target process our dll is mapped inside of then calling FreeLibrary on our dlls handle,
+its just dll injection but backwards, although this is also just calling FreeLibrary from the target process.
+in our first scenario,
+if our dll is unloading itself we can run any cleanup code before we unload, alhtough this is a bit more complicated.
+lets say we have a dll that creates a main thead in DllMain DLL_PROCESS_ATTACH. if we want to unload the dll we cannot just run FreeLibrary there, this is what would happen:
+we call FreeLibrary, the CPU jumps to executing that function, the dll is unmapped/unloaded, the cpu returns to executing our instructions, but since we unloaded our dll all the the raw assembly
+instructions (code) following the FreeLibrary functions call instruction is free/unloaded, the process throws an immediate access violation exception (0xC0000005) and crashes.
+so what we need to do is use the FreeLibraryAndExitThread function, this will perform FreeLibrary but also immediately terminate the calling thread (ExitThread, note that it is an unsafe exit).
+so now (if reference is 0) the dll is unloaded and the calling thread is terminated so the control (cpu execution) doesnt try to return to a non-existing thread.
+ExitThread is executed entirely from kernel32.dll, which stays loaded, meaning control never attempts to return to the memory space of the unmapped dll.
+so this unloads the dll and terminates the thread its ran from (calling thread), although any other running threads created by the dll will linger in the kernels and host processes memory space,
+resulting in a Access Violation expection. but why? for the same reason as before.
+on a basic level, a thead is an os-level kernel object.
+they exist in kernel memory, managed by the windows executive kernel, completely independent of the dlls or processes virtual memory space.
+unloading the dll does not kill or free other threads. the kernel onject part of the thread is untouched in kenerl memory,
+along side the os thread structures, thread IDs, and call stacks, which all remain allocated in process memory.
+no part of a thread that our dll creates lives or depends on the dll except for the actual code ofc, when the dll is unloaded the thread has no code to return to or run.
+each running thread has its own cpu register state, including its Instruction Pointer (RIP on 64-bit / EIP on 32-bit).
+if a thread is actively executing instructions (code) inside the dll, as soon as the memory pages are unmapped, the threads next instruction fetch at RIP hits a page fault.
+since that virtual memory range is no longer mapped, the OS raises an access violation exception (0xC0000005).
+if a thread is asleep or waiting (for eg, Sleep or WaitForSingleObject), the thread will continue waiting harmlessly while asleep.
+however, the return address on its stack points to an address inside your dll. the exact moment the sleep or wait finishes, the thread wakes up and attempts to execute the next instruction,
+and instantly crashes with an access violation.
+so to prevent an access violation exception, which will crash the target process, we need to make sure all the threads are terminated gracefully.
+when unloading the dll within itself, FreeLibraryAndExitThread needs to be ran on one thread, and any other threads also need to be return / terminate.
+for example a dll could spin off a main thread, and if its the only thread it can safely run any cleanup code then run FreeLibraryAndExitThread all from itself directly.
+but with a dll that has more than one thread running, the thread running FreeLibraryAndExitThread needs to be the only thread left.
+(note that threads on an os level are very complicated, i know little on them currently, and i have little experience even working with them on a higher level.)
+since we are unloading the dll ourselves we can either simply wait for the target thread or threads to exit with a function like WaitForSingleObject or WaitForMultipleObjects,
+std::thread::join c++ equivelant, which blocks the calling thread from running until the target thread(s) exits or until the timeout expires.
+for threads that runs in a loop and wont gracefully exit with their function return (return 0;), we could as an example signify them with a global variable to break out of their loop,
+perform any clean up if neccesary, then return 0 to exit themselves gracefully.
+remember that its unsafe to force a thread to termiante, using ExitThread or TerminateThread (which is the external api) is unsafe for c++, it instantly halts the thread without any cleanup.
+as if the thread returns itself gracefully with return 0, it automatically triggers c++ stack unwinding, executes destructors for local objects,
+frees c++ runtime thread-local storage, and implicitly calls ExitThread.
+FreeLibraryAndExitThread is mostly safe now, assuming any neccesary cleanup is performed before hand, like freeing any heap allocated memory and cleaning up any running threads,
+the only thing left running / in memory is the final thread about to run FreeLibraryAndExitThread, which alongside FreeLibrary, which will unmap all the dlls static data like instructions
+from memory, will also run ExitThread. the cpu has nothing to return to and will also no longer attempt to return, causing an access violation.
+the only thing we have not accounted for is the stack, specifically local stack variables.
+in c++, local stack objects/variables are handled automatically, when the object leaves its scope (the scope block '{}' in which it was declared in), the object will automatically run its destructor.
+
+regheqerrgrewrtgrhgqqeoijrhbqhrqRHUQEHREQWRURHERHU
+however, FreeLibraryAndExitThread halts the thread instantly on that exact line, so the end of the function is never reached.

@@ -18,10 +18,12 @@ BOOL APIENTRY DllMain(HMODULE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     case DLL_PROCESS_DETACH:
         MessageBoxA(nullptr, "(  \\_/  )  Goodbye from BNUYHOOK...\n(> . o)  The DLL is being unloaded from the process.", "BNUYHOOK - DLL_PROCESS_DETACH", MB_OK | MB_ICONWARNING);
 
-        // perform cleanup on dynamic exit (FreeLibrary)
+        // perform basic cleanup on dynamic exit (FreeLibrary)
         // since only our dll is terminating the target process stays running,
-        // so we need to perform any cleanup here. if lpvReserved is not null,
+        // so we need to perform any necessary cleanup here. if lpvReserved is not null,
         // the target process is terminating so we dont need to perform any cleanup.
+        // remember since this is in DllMain, the loader lock is being held, so we cannot
+        // perform any advanced cleanup or use certain functions.
         if (lpvReserved == nullptr)
         {
             // cleanup code goes here, remove break
